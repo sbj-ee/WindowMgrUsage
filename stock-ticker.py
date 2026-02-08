@@ -384,6 +384,9 @@ class TickerWindow(Gtk.Window):
         self.drawing_area.connect("button-press-event", self.on_click)
         self.add(self.drawing_area)
 
+        # Reserve screen space once the window is mapped
+        self.connect("realize", self._set_strut)
+
         # Apply initial layout & start timers
         self._apply_geometry()
         self._start_timers()
@@ -396,6 +399,30 @@ class TickerWindow(Gtk.Window):
         self.set_default_size(self.screen_width, h)
         self.set_size_request(self.screen_width, h)
         self.move(self._geom.x, self._geom.y + self.panel_height)
+        if self.get_realized():
+            self._set_strut()
+
+    def _set_strut(self, *_args):
+        """Reserve screen space so other windows don't overlap the ticker.
+        Uses _NET_WM_STRUT_PARTIAL to tell the window manager to keep
+        this strip clear, just like the GNOME panel does."""
+        window = self.get_window()
+        if window is None:
+            return
+        try:
+            xid = window.get_xid()
+        except Exception:
+            return
+        top = self.panel_height + self.cfg.bar_height
+        # _NET_WM_STRUT_PARTIAL: left, right, top, bottom,
+        #   left_start_y, left_end_y, right_start_y, right_end_y,
+        #   top_start_x, top_end_x, bottom_start_x, bottom_end_x
+        strut = f"0, 0, {top}, 0, 0, 0, 0, 0, 0, {self.screen_width - 1}, 0, 0"
+        subprocess.run([
+            "xprop", "-id", str(xid),
+            "-f", "_NET_WM_STRUT_PARTIAL", "32c",
+            "-set", "_NET_WM_STRUT_PARTIAL", strut,
+        ], check=False)
 
     def _start_timers(self):
         if self._anim_source:
