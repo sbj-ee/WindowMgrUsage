@@ -9,17 +9,20 @@ A transparent scrolling stock ticker that sits at the top of your screen, just b
 ### Features
 
 - Transparent overlay, full screen width, always on top
+- Reserves screen space via `_NET_WM_STRUT_PARTIAL` so maximized/tiled windows won't overlap the ticker
+- Continuous seamless scrolling across the full screen width
 - Scrolling stock symbols colored green (up) or red (down) with price and daily % change
-- Date and time displayed before each ticker loop
-- Live data from Yahoo Finance, refreshed every 15 minutes
+- Exchange market timestamp (e.g. "Fri Feb 06 04:00 PM EST") displayed before each ticker loop
+- Live data from Yahoo Finance via `curl_cffi` (browser TLS impersonation), refreshed every 15 minutes
 - Left-click settings menu to adjust:
   - Font size (16, 20, 28, 32)
   - Scroll speed (Slow, Medium, Fast, Very Fast)
-  - Background opacity
+  - Background opacity (Light, Medium, Dark, Solid)
   - Refresh interval (5, 15, 30, 60 min)
-  - Stock symbols
+  - Stock symbols (add/remove via dialog)
+  - Refresh now
 - Right-click to quit
-- Settings persist across restarts (`.ticker-config.json`)
+- All settings persist across restarts (`.ticker-config.json`)
 
 ### Requirements
 
