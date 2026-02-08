@@ -19,6 +19,7 @@ import subprocess
 import os
 import json as jsonlib
 from datetime import datetime
+import zoneinfo
 from curl_cffi import requests
 
 # ── Defaults ─────────────────────────────────────────────────────────────────
@@ -103,16 +104,18 @@ class StockStore:
         self.cfg = cfg
         self.lock = threading.Lock()
         self.quotes = []
+        self.market_time_str = ""
         self.session = requests.Session(impersonate="chrome")
         self.session.headers.update(YAHOO_HEADERS)
 
     def fetch(self):
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                new_quotes = self._fetch_all()
+                new_quotes, market_time = self._fetch_all()
                 if new_quotes:
                     with self.lock:
                         self.quotes = new_quotes
+                        self.market_time_str = market_time
                     print(f"[stock-ticker] fetched {len(new_quotes)} quotes", file=sys.stderr)
                     return
             except Exception as e:
@@ -123,17 +126,22 @@ class StockStore:
 
     def _fetch_all(self):
         new_quotes = []
+        market_time_str = ""
         for sym in self.cfg.symbols:
-            q = self._fetch_one(sym)
-            if q is None:
+            result = self._fetch_one(sym)
+            if result is None:
                 continue
-            if q == "RATE_LIMITED":
+            if result == "RATE_LIMITED":
                 raise RuntimeError("rate limited (429)")
-            new_quotes.append(q)
+            quote, ts = result
+            if not market_time_str and ts:
+                market_time_str = ts
+            new_quotes.append(quote)
             time.sleep(0.5)
-        return new_quotes
+        return new_quotes, market_time_str
 
     def _fetch_one(self, symbol):
+        """Fetch a single symbol. Returns (quote_dict, timestamp_str), None, or 'RATE_LIMITED'."""
         url = YAHOO_CHART_URL.format(symbol=symbol)
         resp = self.session.get(url, timeout=10)
         if resp.status_code == 429:
@@ -149,14 +157,25 @@ class StockStore:
         prev = closes[-2]
         change = cur - prev
         pct = (change / prev) * 100 if prev else 0
+
+        # Extract market time from the first symbol
+        ts = ""
+        try:
+            meta = result["meta"]
+            tz = zoneinfo.ZoneInfo(meta["exchangeTimezoneName"])
+            dt = datetime.fromtimestamp(meta["regularMarketTime"], tz=tz)
+            ts = dt.strftime("%a %b %d  %I:%M %p %Z")
+        except Exception:
+            pass
+
         return {
             "symbol": symbol, "price": cur,
             "change": change, "pct": pct, "up": change >= 0,
-        }
+        }, ts
 
     def get_quotes(self):
         with self.lock:
-            return list(self.quotes)
+            return list(self.quotes), self.market_time_str
 
 
 # ── Settings menu ────────────────────────────────────────────────────────────
@@ -479,13 +498,13 @@ class TickerWindow(Gtk.Window):
         cr.paint()
         cr.set_operator(cairo.OPERATOR_OVER)
 
-        quotes = self.store.get_quotes()
+        quotes, market_time = self.store.get_quotes()
         if not quotes:
             self._draw_loading(cr, cfg)
             return
 
         layout = PangoCairo.create_layout(cr)
-        total_w = self._measure_content(layout, quotes, cfg)
+        total_w = self._measure_content(layout, quotes, cfg, market_time)
         self.content_width = total_w
 
         # Tile enough copies to seamlessly fill the entire screen width
@@ -493,7 +512,7 @@ class TickerWindow(Gtk.Window):
             start_x = self.scroll_x % total_w - total_w
             x = start_x
             while x < self.screen_width:
-                self._draw_items(cr, quotes, x, cfg)
+                self._draw_items(cr, quotes, x, cfg, market_time)
                 x += total_w
 
     def _draw_loading(self, cr, cfg):
@@ -505,19 +524,17 @@ class TickerWindow(Gtk.Window):
         cr.move_to(20, (cfg.bar_height - cfg.ticker_font_size) / 2 - 2)
         PangoCairo.show_layout(cr, layout)
 
-    def _get_timestamp(self):
-        return datetime.now().strftime("%a %b %d  %I:%M %p")
-
-    def _measure_content(self, layout, quotes, cfg):
+    def _measure_content(self, layout, quotes, cfg, market_time):
         total = 0
         sym_font = Pango.FontDescription(f"Sans Bold {cfg.ticker_font_size}")
         price_font = Pango.FontDescription(f"Sans {cfg.price_font_size}")
 
-        # Date/time prefix
-        layout.set_font_description(price_font)
-        layout.set_text(self._get_timestamp(), -1)
-        ts_w, _ = layout.get_pixel_size()
-        total += ts_w + cfg.item_gap
+        # Market date/time prefix
+        if market_time:
+            layout.set_font_description(price_font)
+            layout.set_text(market_time, -1)
+            ts_w, _ = layout.get_pixel_size()
+            total += ts_w + cfg.item_gap
 
         for q in quotes:
             layout.set_font_description(sym_font)
@@ -533,22 +550,22 @@ class TickerWindow(Gtk.Window):
             total += sym_w + price_w + cfg.item_gap
         return total
 
-    def _draw_items(self, cr, quotes, x_start, cfg):
+    def _draw_items(self, cr, quotes, x_start, cfg, market_time):
         x = x_start
         sym_font = Pango.FontDescription(f"Sans Bold {cfg.ticker_font_size}")
         price_font = Pango.FontDescription(f"Sans {cfg.price_font_size}")
         layout = PangoCairo.create_layout(cr)
 
-        # Date/time prefix
-        layout.set_font_description(price_font)
-        ts_text = self._get_timestamp()
-        layout.set_text(ts_text, -1)
-        ts_w, ts_h = layout.get_pixel_size()
-        y_ts = (cfg.bar_height - ts_h) / 2
-        cr.set_source_rgba(0.8, 0.8, 0.8, 0.9)
-        cr.move_to(x, y_ts)
-        PangoCairo.show_layout(cr, layout)
-        x += ts_w + cfg.item_gap
+        # Market date/time prefix
+        if market_time:
+            layout.set_font_description(price_font)
+            layout.set_text(market_time, -1)
+            ts_w, ts_h = layout.get_pixel_size()
+            y_ts = (cfg.bar_height - ts_h) / 2
+            cr.set_source_rgba(0.8, 0.8, 0.8, 0.9)
+            cr.move_to(x, y_ts)
+            PangoCairo.show_layout(cr, layout)
+            x += ts_w + cfg.item_gap
 
         for q in quotes:
             color = COLOR_UP if q["up"] else COLOR_DOWN
