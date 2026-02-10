@@ -11,9 +11,9 @@ A transparent scrolling stock ticker that sits at the top of your screen, just b
 - Transparent overlay, full screen width, always on top
 - Reserves screen space via `_NET_WM_STRUT_PARTIAL` so maximized/tiled windows won't overlap the ticker
 - Continuous seamless scrolling across the full screen width
-- Scrolling stock symbols colored green (up) or red (down) with price and daily % change
+- Scrolling stock symbols colored green (up), red (down), or gray (flat) with price and daily % change
 - Exchange market timestamp (e.g. "Fri Feb 06 04:00 PM EST") displayed before each ticker loop
-- Live data from Yahoo Finance via `curl_cffi` (browser TLS impersonation), refreshed every 15 minutes
+- Live data from Yahoo Finance chart API via `curl_cffi` (browser TLS impersonation), refreshed every 15 minutes
 - Left-click settings menu to adjust:
   - Font size (16, 20, 28, 32)
   - Scroll speed (Slow, Medium, Fast, Very Fast)
@@ -21,14 +21,15 @@ A transparent scrolling stock ticker that sits at the top of your screen, just b
   - Refresh interval (5, 15, 30, 60 min)
   - Stock symbols (add/remove via dialog)
   - Refresh now
+  - Quit
 - Right-click to quit
 - All settings persist across restarts (`.ticker-config.json`)
 
 ### Requirements
 
 - Python 3.10+
-- GTK3 with GObject Introspection (`python3-gi`)
-- `curl_cffi` (installed automatically with yfinance)
+- GTK3 with GObject Introspection (`python3-gi`, `gir1.2-gtk-3.0`)
+- `curl_cffi`
 
 ### Setup
 
@@ -37,7 +38,7 @@ A transparent scrolling stock ticker that sits at the top of your screen, just b
 python3 -m venv venv --system-site-packages
 
 # Install dependencies
-venv/bin/pip install yfinance
+venv/bin/pip install curl_cffi
 ```
 
 ### Usage
