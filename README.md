@@ -65,19 +65,11 @@ venv/bin/python stock-ticker.py
 
 **macOS:**
 
-GTK3 needs help finding the Homebrew shared libraries:
-
 ```bash
-DYLD_LIBRARY_PATH=/usr/local/lib \
-GI_TYPELIB_PATH=/usr/local/lib/girepository-1.0 \
-  venv/bin/python stock-ticker.py
+venv/bin/python stock-ticker.py
 ```
 
-Or add a shell alias for convenience:
-
-```bash
-alias stock-ticker='DYLD_LIBRARY_PATH=/usr/local/lib GI_TYPELIB_PATH=/usr/local/lib/girepository-1.0 /path/to/venv/bin/python /path/to/stock-ticker.py'
-```
+The script automatically sets `DYLD_FALLBACK_LIBRARY_PATH` to find Homebrew's GTK3 shared libraries (via a one-time re-exec), so no manual environment variables are needed.
 
 ### macOS Notes
 
