@@ -74,8 +74,27 @@ The script automatically sets `DYLD_FALLBACK_LIBRARY_PATH` to find Homebrew's GT
 ### macOS Notes
 
 - The ticker uses the Quartz backend (no X11/XQuartz required)
-- Screen space reservation (`_NET_WM_STRUT_PARTIAL`) is not available on macOS, so maximized windows may overlap the ticker
+- Screen space reservation (`_NET_WM_STRUT_PARTIAL`) is not available on macOS; use [yabai](https://github.com/koekeishiya/yabai) to prevent maximized windows from overlapping the ticker (see below)
 - The dyld warnings about `_CGLSetCurrentContext` on startup are harmless and can be ignored
+
+### macOS Screen Space Reservation (yabai)
+
+macOS has no equivalent to X11 struts, so maximized windows will overlap the ticker by default. The [yabai](https://github.com/koekeishiya/yabai) window manager can reserve that space:
+
+```bash
+# Install yabai
+brew install koekeishiya/formulae/yabai
+
+# Copy the included config to your home directory
+cp .yabairc ~/.yabairc
+
+# Start yabai (runs automatically on login)
+yabai --start-service
+```
+
+Grant yabai **Accessibility** permission when prompted (System Settings > Privacy & Security > Accessibility).
+
+The included `.yabairc` reserves 44px (the default ticker height) below the menu bar and keeps normal macOS float window behavior. If you change the ticker font size, update the `44` in `~/.yabairc` to match (`font_size + 24`) and run `yabai --restart-service`.
 
 ### Default Symbols
 

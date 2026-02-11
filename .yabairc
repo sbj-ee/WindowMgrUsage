@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+
+# Reserve space for the stock ticker (44px below the menu bar)
+yabai -m config external_bar main:44:0
+
+# Keep default macOS window management (float mode, no tiling)
+yabai -m config layout float
