@@ -18,9 +18,12 @@ import sys
 import subprocess
 import os
 import json as jsonlib
+import platform
 from datetime import datetime
 import zoneinfo
 from curl_cffi import requests
+
+IS_MACOS = platform.system() == "Darwin"
 
 # ── Defaults ─────────────────────────────────────────────────────────────────
 
@@ -373,16 +376,19 @@ class TickerWindow(Gtk.Window):
         self.screen_width = geom.width
         self._geom = geom
 
-        # Detect GNOME panel height from _NET_WORKAREA
-        self.panel_height = 32
-        try:
-            out = subprocess.check_output(
-                ["xprop", "-root", "_NET_WORKAREA"], text=True
-            )
-            vals = out.split("=")[1].strip().split(",")
-            self.panel_height = int(vals[1].strip())
-        except Exception:
-            pass
+        # Detect panel/menu-bar height
+        if IS_MACOS:
+            self.panel_height = 25  # macOS menu bar
+        else:
+            self.panel_height = 32
+            try:
+                out = subprocess.check_output(
+                    ["xprop", "-root", "_NET_WORKAREA"], text=True
+                )
+                vals = out.split("=")[1].strip().split(",")
+                self.panel_height = int(vals[1].strip())
+            except Exception:
+                pass
 
         # Transparent RGBA visual
         visual = screen.get_rgba_visual()
@@ -423,8 +429,11 @@ class TickerWindow(Gtk.Window):
 
     def _set_strut(self, *_args):
         """Reserve screen space so other windows don't overlap the ticker.
-        Uses _NET_WM_STRUT_PARTIAL to tell the window manager to keep
-        this strip clear, just like the GNOME panel does."""
+        Uses _NET_WM_STRUT_PARTIAL on X11 to tell the window manager to keep
+        this strip clear, just like the GNOME panel does.
+        Not available on macOS (Quartz backend)."""
+        if IS_MACOS:
+            return
         window = self.get_window()
         if window is None:
             return
