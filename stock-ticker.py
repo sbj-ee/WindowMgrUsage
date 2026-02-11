@@ -5,6 +5,15 @@ Uses Yahoo Finance chart API for price data, GTK3+Cairo for rendering.
 Left-click for settings, right-click to quit.
 """
 
+import os
+import platform
+if platform.system() == "Darwin" and "/usr/local/lib" not in os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", ""):
+    import sys
+    env = os.environ.copy()
+    existing = env.get("DYLD_FALLBACK_LIBRARY_PATH", "")
+    env["DYLD_FALLBACK_LIBRARY_PATH"] = f"/usr/local/lib:{existing}" if existing else "/usr/local/lib"
+    os.execve(sys.executable, [sys.executable] + sys.argv, env)
+
 import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
