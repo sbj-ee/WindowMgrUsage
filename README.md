@@ -1,15 +1,15 @@
 # WindowMgrUsage
 
-Tools for monitoring window usage and displaying live stock data on Linux/GNOME (X11).
+Tools for monitoring window usage and displaying live stock data. Supports Linux/GNOME (X11) and macOS.
 
 ## Stock Ticker Overlay
 
-A transparent scrolling stock ticker that sits at the top of your screen, just below the GNOME panel.
+A transparent scrolling stock ticker that sits at the top of your screen, just below the system panel/menu bar.
 
 ### Features
 
 - Transparent overlay, full screen width, always on top
-- Reserves screen space via `_NET_WM_STRUT_PARTIAL` so maximized/tiled windows won't overlap the ticker
+- Reserves screen space via `_NET_WM_STRUT_PARTIAL` so maximized/tiled windows won't overlap the ticker (Linux/X11 only)
 - Continuous seamless scrolling across the full screen width
 - Scrolling stock symbols colored green (up), red (down), or gray (flat) with price and daily % change
 - Exchange market timestamp (e.g. "Fri Feb 06 04:00 PM EST") displayed before each ticker loop
@@ -28,24 +28,62 @@ A transparent scrolling stock ticker that sits at the top of your screen, just b
 ### Requirements
 
 - Python 3.10+
-- GTK3 with GObject Introspection (`python3-gi`, `gir1.2-gtk-3.0`)
+- GTK3 with GObject Introspection
 - `curl_cffi`
 
-### Setup
+### Setup (Linux)
 
 ```bash
+# Install system dependencies (Debian/Ubuntu)
+sudo apt install python3-gi gir1.2-gtk-3.0
+
 # Create a venv with access to system GTK3 bindings
 python3 -m venv venv --system-site-packages
 
-# Install dependencies
-venv/bin/pip install curl_cffi
+# Install Python dependencies
+venv/bin/pip install -r requirements.txt
+```
+
+### Setup (macOS)
+
+```bash
+# Install system dependencies via Homebrew
+brew install gtk+3 pygobject3 gobject-introspection
+
+# Create a venv and install Python dependencies
+python3 -m venv venv
+venv/bin/pip install -r requirements.txt
 ```
 
 ### Usage
 
+**Linux:**
+
 ```bash
 venv/bin/python stock-ticker.py
 ```
+
+**macOS:**
+
+GTK3 needs help finding the Homebrew shared libraries:
+
+```bash
+DYLD_LIBRARY_PATH=/usr/local/lib \
+GI_TYPELIB_PATH=/usr/local/lib/girepository-1.0 \
+  venv/bin/python stock-ticker.py
+```
+
+Or add a shell alias for convenience:
+
+```bash
+alias stock-ticker='DYLD_LIBRARY_PATH=/usr/local/lib GI_TYPELIB_PATH=/usr/local/lib/girepository-1.0 /path/to/venv/bin/python /path/to/stock-ticker.py'
+```
+
+### macOS Notes
+
+- The ticker uses the Quartz backend (no X11/XQuartz required)
+- Screen space reservation (`_NET_WM_STRUT_PARTIAL`) is not available on macOS, so maximized windows may overlap the ticker
+- The dyld warnings about `_CGLSetCurrentContext` on startup are harmless and can be ignored
 
 ### Default Symbols
 
@@ -55,9 +93,9 @@ Edit symbols via the left-click settings menu or by modifying `.ticker-config.js
 
 ---
 
-## Window Usage Tracker
+## Window Usage Tracker (Linux only)
 
-A bash script that tracks how long each application window is in focus.
+A bash script that tracks how long each application window is in focus. Requires X11.
 
 ### Requirements
 
