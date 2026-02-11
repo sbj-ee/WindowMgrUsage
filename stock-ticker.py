@@ -7,12 +7,16 @@ Left-click for settings, right-click to quit.
 
 import os
 import platform
-if platform.system() == "Darwin" and "/usr/local/lib" not in os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", ""):
-    import sys
-    env = os.environ.copy()
-    existing = env.get("DYLD_FALLBACK_LIBRARY_PATH", "")
-    env["DYLD_FALLBACK_LIBRARY_PATH"] = f"/usr/local/lib:{existing}" if existing else "/usr/local/lib"
-    os.execve(sys.executable, [sys.executable] + sys.argv, env)
+if platform.system() == "Darwin":
+    import struct
+    # /opt/homebrew on Apple Silicon, /usr/local on Intel
+    _brew_lib = "/opt/homebrew/lib" if struct.calcsize("P") * 8 == 64 and os.uname().machine == "arm64" else "/usr/local/lib"
+    _existing = os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", "")
+    if _brew_lib not in _existing:
+        import sys
+        env = os.environ.copy()
+        env["DYLD_FALLBACK_LIBRARY_PATH"] = f"{_brew_lib}:{_existing}" if _existing else _brew_lib
+        os.execve(sys.executable, [sys.executable] + sys.argv, env)
 
 import gi
 gi.require_version('Gtk', '3.0')
