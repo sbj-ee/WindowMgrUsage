@@ -12,7 +12,7 @@ if platform.system() == "Darwin":
     # /opt/homebrew on Apple Silicon, /usr/local on Intel
     _brew_lib = "/opt/homebrew/lib" if struct.calcsize("P") * 8 == 64 and os.uname().machine == "arm64" else "/usr/local/lib"
     _existing = os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", "")
-    if _brew_lib not in _existing:
+    if _brew_lib not in _existing.split(":"):
         import sys
         env = os.environ.copy()
         env["DYLD_FALLBACK_LIBRARY_PATH"] = f"{_brew_lib}:{_existing}" if _existing else _brew_lib
@@ -324,8 +324,8 @@ def _on_edit_symbols(item, win):
         flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
     )
     dialog.add_buttons(
-        Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-        Gtk.STOCK_OK, Gtk.ResponseType.OK,
+        "Cancel", Gtk.ResponseType.CANCEL,
+        "OK", Gtk.ResponseType.OK,
     )
     dialog.set_default_size(350, 200)
 
@@ -389,19 +389,11 @@ class TickerWindow(Gtk.Window):
         self.screen_width = geom.width
         self._geom = geom
 
-        # Detect panel/menu-bar height
-        if IS_MACOS:
-            self.panel_height = 25  # macOS menu bar
-        else:
-            self.panel_height = 32
-            try:
-                out = subprocess.check_output(
-                    ["xprop", "-root", "_NET_WORKAREA"], text=True
-                )
-                vals = out.split("=")[1].strip().split(",")
-                self.panel_height = int(vals[1].strip())
-            except Exception:
-                pass
+        # Detect panel/menu-bar height via GTK workarea
+        workarea = monitor.get_workarea()
+        self.panel_height = workarea.y - geom.y
+        if self.panel_height <= 0:
+            self.panel_height = 25 if IS_MACOS else 32
 
         # Transparent RGBA visual
         visual = screen.get_rgba_visual()
@@ -444,7 +436,7 @@ class TickerWindow(Gtk.Window):
         """Reserve screen space so other windows don't overlap the ticker.
         Uses _NET_WM_STRUT_PARTIAL on X11 to tell the window manager to keep
         this strip clear, just like the GNOME panel does.
-        Not available on macOS (Quartz backend)."""
+        Not available on macOS (Quartz) or Wayland."""
         if IS_MACOS:
             return
         window = self.get_window()
@@ -452,6 +444,12 @@ class TickerWindow(Gtk.Window):
             return
         try:
             xid = window.get_xid()
+        except AttributeError:
+            # Wayland backend — no X11 window ID available
+            if not getattr(self, "_wayland_warned", False):
+                print("[stock-ticker] Wayland detected, strut reservation unavailable", file=sys.stderr)
+                self._wayland_warned = True
+            return
         except Exception:
             return
         top = self.panel_height + self.cfg.bar_height
