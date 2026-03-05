@@ -2,6 +2,7 @@
 """
 Transparent scrolling stock ticker overlay for the top of the screen.
 Uses Yahoo Finance chart API for price data, GTK3+Cairo for rendering.
+Supports both X11 and Wayland (via gtk-layer-shell).
 Left-click for settings, right-click to quit.
 """
 
@@ -37,6 +38,18 @@ import zoneinfo
 from curl_cffi import requests
 
 IS_MACOS = platform.system() == "Darwin"
+
+# Detect Wayland and load gtk-layer-shell if available
+IS_WAYLAND = os.environ.get("XDG_SESSION_TYPE") == "wayland" or os.environ.get("WAYLAND_DISPLAY") is not None
+HAS_LAYER_SHELL = False
+if IS_WAYLAND and not IS_MACOS:
+    try:
+        gi.require_version('GtkLayerShell', '0.1')
+        from gi.repository import GtkLayerShell
+        HAS_LAYER_SHELL = True
+    except (ValueError, ImportError):
+        print("[stock-ticker] gtk-layer-shell not available, Wayland overlay may not work correctly", file=sys.stderr)
+        print("[stock-ticker] Install: sudo apt install gir1.2-gtklayershell-0.1 libgtk-layer-shell0", file=sys.stderr)
 
 # ── Defaults ─────────────────────────────────────────────────────────────────
 
@@ -381,6 +394,7 @@ class TickerWindow(Gtk.Window):
         self.content_width = 0
         self._anim_source = None
         self._refresh_source = None
+        self._use_layer_shell = HAS_LAYER_SHELL
 
         screen = Gdk.Screen.get_default()
         display = Gdk.Display.get_default()
@@ -388,12 +402,25 @@ class TickerWindow(Gtk.Window):
         geom = monitor.get_geometry()
         self.screen_width = geom.width
         self._geom = geom
+        self._monitor = monitor
 
-        # Detect panel/menu-bar height via GTK workarea
+        # Detect panel/menu-bar height via GTK workarea (used for X11 positioning)
         workarea = monitor.get_workarea()
         self.panel_height = workarea.y - geom.y
         if self.panel_height <= 0:
             self.panel_height = 25 if IS_MACOS else 32
+
+        # Wayland layer-shell setup (must be done before realize/show)
+        if self._use_layer_shell:
+            GtkLayerShell.init_for_window(self)
+            GtkLayerShell.set_layer(self, GtkLayerShell.Layer.TOP)
+            GtkLayerShell.set_monitor(self, monitor)
+            GtkLayerShell.auto_exclusive_zone_enable(self)
+            GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
+            GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, True)
+            GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.RIGHT, True)
+            GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.BOTTOM, False)
+            GtkLayerShell.set_namespace(self, "stock-ticker")
 
         # Transparent RGBA visual
         visual = screen.get_rgba_visual()
@@ -401,11 +428,12 @@ class TickerWindow(Gtk.Window):
             self.set_visual(visual)
         self.set_app_paintable(True)
 
-        # Window behaviour
+        # Window behaviour (X11 fallback — ignored on Wayland with layer-shell)
         self.set_decorated(False)
-        self.set_keep_above(True)
-        self.set_type_hint(Gdk.WindowTypeHint.DOCK)
-        self.stick()
+        if not self._use_layer_shell:
+            self.set_keep_above(True)
+            self.set_type_hint(Gdk.WindowTypeHint.DOCK)
+            self.stick()
 
         # Drawing area
         self.drawing_area = Gtk.DrawingArea()
@@ -414,8 +442,9 @@ class TickerWindow(Gtk.Window):
         self.drawing_area.connect("button-press-event", self.on_click)
         self.add(self.drawing_area)
 
-        # Reserve screen space once the window is mapped
-        self.connect("realize", self._set_strut)
+        # Reserve screen space once the window is mapped (X11 only)
+        if not self._use_layer_shell:
+            self.connect("realize", self._set_strut)
 
         # Apply initial layout & start timers
         self._apply_geometry()
@@ -428,9 +457,10 @@ class TickerWindow(Gtk.Window):
         h = self.cfg.bar_height
         self.set_default_size(self.screen_width, h)
         self.set_size_request(self.screen_width, h)
-        self.move(self._geom.x, self._geom.y + self.panel_height)
-        if self.get_realized():
-            self._set_strut()
+        if not self._use_layer_shell:
+            self.move(self._geom.x, self._geom.y + self.panel_height)
+            if self.get_realized():
+                self._set_strut()
 
     def _set_strut(self, *_args):
         """Reserve screen space so other windows don't overlap the ticker.

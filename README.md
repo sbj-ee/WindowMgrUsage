@@ -1,6 +1,6 @@
 # WindowMgrUsage
 
-Tools for monitoring window usage and displaying live stock data. Supports Linux/GNOME (X11) and macOS.
+Tools for monitoring window usage and displaying live stock data. Supports Linux/GNOME (X11 and Wayland) and macOS.
 
 ## Stock Ticker Overlay
 
@@ -9,7 +9,7 @@ A transparent scrolling stock ticker that sits at the top of your screen, just b
 ### Features
 
 - Transparent overlay, full screen width, always on top
-- Reserves screen space via `_NET_WM_STRUT_PARTIAL` so maximized/tiled windows won't overlap the ticker (Linux/X11 only)
+- Reserves screen space so maximized/tiled windows won't overlap the ticker (via `_NET_WM_STRUT_PARTIAL` on X11, or `gtk-layer-shell` exclusive zone on Wayland)
 - Continuous seamless scrolling across the full screen width
 - Scrolling stock symbols colored green (up), red (down), or gray (flat) with price and daily % change
 - Exchange market timestamp (e.g. "Fri Feb 06 04:00 PM EST") displayed before each ticker loop
@@ -36,6 +36,9 @@ A transparent scrolling stock ticker that sits at the top of your screen, just b
 ```bash
 # Install system dependencies (Debian/Ubuntu)
 sudo apt install python3-gi gir1.2-gtk-3.0
+
+# For Wayland support (Pop!_OS 24.04+, COSMIC, Sway, Hyprland, etc.)
+sudo apt install gir1.2-gtklayershell-0.1 libgtk-layer-shell0
 
 # Create a venv with access to system GTK3 bindings
 python3 -m venv venv --system-site-packages
