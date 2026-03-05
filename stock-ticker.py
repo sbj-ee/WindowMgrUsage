@@ -413,9 +413,9 @@ class TickerWindow(Gtk.Window):
         # Wayland layer-shell setup (must be done before realize/show)
         if self._use_layer_shell:
             GtkLayerShell.init_for_window(self)
-            GtkLayerShell.set_layer(self, GtkLayerShell.Layer.TOP)
+            GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
             GtkLayerShell.set_monitor(self, monitor)
-            GtkLayerShell.auto_exclusive_zone_enable(self)
+            GtkLayerShell.set_exclusive_zone(self, cfg.bar_height)
             GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
             GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, True)
             GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.RIGHT, True)
@@ -457,7 +457,9 @@ class TickerWindow(Gtk.Window):
         h = self.cfg.bar_height
         self.set_default_size(self.screen_width, h)
         self.set_size_request(self.screen_width, h)
-        if not self._use_layer_shell:
+        if self._use_layer_shell:
+            GtkLayerShell.set_exclusive_zone(self, h)
+        else:
             self.move(self._geom.x, self._geom.y + self.panel_height)
             if self.get_realized():
                 self._set_strut()
