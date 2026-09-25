@@ -46,10 +46,19 @@ if IS_WAYLAND and not IS_MACOS:
     try:
         gi.require_version('GtkLayerShell', '0.1')
         from gi.repository import GtkLayerShell
-        HAS_LAYER_SHELL = True
+        HAS_LAYER_SHELL = GtkLayerShell.is_supported()
     except (ValueError, ImportError):
         print("[stock-ticker] gtk-layer-shell not available, Wayland overlay may not work correctly", file=sys.stderr)
         print("[stock-ticker] Install: sudo apt install gir1.2-gtklayershell-0.1 libgtk-layer-shell0", file=sys.stderr)
+
+    # GNOME/Mutter has no layer-shell protocol. Re-exec under XWayland so the
+    # X11 dock-hint + strut path is used instead of crashing.
+    if (not HAS_LAYER_SHELL and os.environ.get("DISPLAY")
+            and os.environ.get("GDK_BACKEND") != "x11"):
+        print("[stock-ticker] Compositor lacks layer-shell; falling back to XWayland", file=sys.stderr)
+        env = os.environ.copy()
+        env["GDK_BACKEND"] = "x11"
+        os.execve(sys.executable, [sys.executable] + sys.argv, env)
 
 # ── Defaults ─────────────────────────────────────────────────────────────────
 
